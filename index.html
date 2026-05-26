@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lisa O'Brien — Medical Calendar PDF Export</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green-primary: #1FBF6C;
+    --green-text: #15a85c;
+    --text-dark: #1a1a1a;
+    --text-medium: #4a4a4a;
+    --text-light: #6b7280;
+    --border-light: #e5e7eb;
+    --border-lighter: #f0f0f0;
+    --bg-gray: #f5f6f8;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #d1d5db;
+    color: var(--text-dark);
+    padding: 28px 0 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Preview bar — only on screen, hidden when printed */
+  .preview-bar {
+    max-width: 1200px;
+    margin: 0 auto 24px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 22px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .preview-bar-left {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .preview-icon {
+    width: 36px; height: 36px;
+    background: #ef4444;
+    color: #fff;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .preview-text {
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .preview-title {
+    font-size: 13px; font-weight: 600; color: var(--text-dark);
+  }
+  .preview-sub {
+    font-size: 11.5px; color: var(--text-light);
+  }
+  .preview-bar-right {
+    display: flex; gap: 8px;
+  }
+  .preview-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--border-light);
+    background: #fff;
+    border-radius: 7px;
+    font-family: inherit; font-size: 12.5px; font-weight: 500;
+    color: var(--text-dark); cursor: pointer;
+  }
+  .preview-btn:hover { background: #f8f9fa; }
+  .preview-btn-primary {
+    background: #1a1a1a; color: #fff; border-color: #1a1a1a;
+  }
+  .preview-btn-primary:hover { background: #2d2d2d; }
+  .preview-btn svg {
+    width: 13px; height: 13px;
+  }
+
+  /* The page — landscape Letter (11" × 8.5") at 96dpi-ish proportions */
+  .pdf-page {
+    width: 1056px;          /* 11in × 96dpi */
+    min-height: 816px;      /* 8.5in × 96dpi */
+    margin: 0 auto;
+    background: #fff;
+    padding: 36px 44px 32px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    display: flex; flex-direction: column;
+  }
+
+  /* Page header */
+  .pdf-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--text-dark);
+    margin-bottom: 16px;
+  }
+  .pdf-header-left {
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .pdf-patient-name {
+    font-size: 22px; font-weight: 700;
+    color: var(--text-dark);
+    letter-spacing: -0.3px;
+  }
+  .pdf-patient-meta {
+    font-size: 11.5px; color: var(--text-medium);
+    display: flex; gap: 14px;
+    margin-top: 2px;
+  }
+  .pdf-patient-meta span strong {
+    color: var(--text-dark); font-weight: 600;
+  }
+  .pdf-header-right {
+    text-align: right;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .pdf-brand {
+    display: flex; align-items: center; gap: 6px;
+    justify-content: flex-end;
+  }
+  .pdf-brand svg { width: 18px; height: 18px; }
+  .pdf-brand-text {
+    font-size: 12px; font-weight: 700;
+    color: var(--text-dark);
+    letter-spacing: 0.2px;
+  }
+  .pdf-doc-type {
+    font-size: 10px; color: var(--text-light);
+    text-transform: uppercase; letter-spacing: 0.8px;
+    font-weight: 600;
+  }
+  .pdf-date-generated {
+    font-size: 10.5px; color: var(--text-light);
+    margin-top: 4px;
+  }
+
+  /* Legend strip — horizontal across the top */
+  .pdf-legend {
+    display: flex; align-items: center; gap: 18px;
+    padding: 8px 12px;
+    background: #fafbfc;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .pdf-legend-label {
+    font-size: 9px; font-weight: 700;
+    color: var(--text-medium);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding-right: 8px;
+    border-right: 1px solid var(--border-light);
+  }
+  .pdf-legend-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10.5px; color: var(--text-dark);
+    font-weight: 500;
+  }
+  .pdf-legend-swatch {
+    width: 11px; height: 11px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .pdf-legend-item.doa {
+    font-weight: 700; color: #8a4a1f;
+  }
+  .pdf-legend-item.doa .pdf-legend-swatch {
+    background: #F0D5C2;
+    border: 1.5px solid #c97a3e;
+  }
+
+  /* 12-month grid — 4 columns × 3 rows */
+  .pdf-year-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    flex: 1;
+  }
+
+  .pdf-month {
+    background: #fff;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 6px 7px 5px;
+    display: flex; flex-direction: column;
+  }
+  .pdf-month-title {
+    text-align: center;
+    font-size: 11px; font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-lighter);
+  }
+  .pdf-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .pdf-weekday {
+    font-size: 7.5px; font-weight: 700;
+    color: var(--text-light);
+    text-align: center;
+    text-transform: uppercase;
+    padding-bottom: 2px;
+  }
+  .pdf-day {
+    aspect-ratio: 1 / 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--text-dark);
+    border-radius: 2px;
+    position: relative;
+    line-height: 1;
+  }
+  .pdf-day.empty { visibility: hidden; }
+  .pdf-day.has-event {
+    font-weight: 700;
+  }
+  .pdf-day.has-event::after {
+    content: ''; position: absolute;
+    top: 1px; right: 1px; bottom: 1px; left: 1px;
+    border-radius: 2px;
+    background: var(--evt-color);
+    z-index: -1;
+  }
+  .pdf-day.has-event { z-index: 1; }
+
+  .pdf-day.is-doa {
+    font-weight: 800;
+    color: #8a4a1f;
+  }
+  .pdf-day.is-doa::after {
+    content: ''; position: absolute;
+    top: 1px; right: 1px; bottom: 1px; left: 1px;
+    border-radius: 2px;
+    background: #F0D5C2;
+    border: 1.5px solid #c97a3e;
+    z-index: -1;
+  }
+  .pdf-day.is-doa { z-index: 1; }
+
+  /* Footer */
+  .pdf-footer {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-lighter);
+    display: flex; justify-content: space-between;
+    font-size: 9.5px; color: var(--text-light);
+  }
+  .pdf-footer-stats {
+    display: flex; gap: 20px;
+  }
+  .pdf-footer-stats strong { color: var(--text-dark); font-weight: 600; }
+
+  /* Print styles */
+  @media print {
+    body {
+      background: #fff;
+      padding: 0;
+    }
+    .preview-bar { display: none; }
+    .pdf-page {
+      width: 100%;
+      min-height: 0;
+      box-shadow: none;
+      padding: 18px 22px;
+      margin: 0;
+    }
+    @page {
+      size: letter landscape;
+      margin: 0.3in;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Preview bar — visible only on screen -->
+  <div class="preview-bar">
+    <div class="preview-bar-left">
+      <div class="preview-icon">PDF</div>
+      <div class="preview-text">
+        <div class="preview-title">Lisa O'Brien — Medical Calendar.pdf</div>
+        <div class="preview-sub">1 page · Landscape · Letter · Generated May 26, 2026</div>
+      </div>
+    </div>
+    <div class="preview-bar-right">
+      <button class="preview-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Print
+      </button>
+      <button class="preview-btn preview-btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download
+      </button>
+    </div>
+  </div>
+
+  <!-- The actual PDF page -->
+  <div class="pdf-page">
+
+    <!-- Header -->
+    <div class="pdf-header">
+      <div class="pdf-header-left">
+        <div class="pdf-patient-name">Lisa O'Brien</div>
+        <div class="pdf-patient-meta">
+          <span><strong>Case:</strong> PI-11</span>
+          <span><strong>DOA:</strong> Jul 6, 2024</span>
+          <span><strong>Period:</strong> Jul 2024 – May 2025</span>
+          <span><strong>Total visits:</strong> 62</span>
+        </div>
+      </div>
+      <div class="pdf-header-right">
+        <div class="pdf-brand">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50 15 L20 80 L35 80 L50 50 L65 80 L80 80 Z" fill="#1FBF6C"/>
+            <path d="M50 50 L40 70 L60 70 Z" fill="#0d9c52"/>
+          </svg>
+          <div class="pdf-brand-text">Anytime AI</div>
+        </div>
+        <div class="pdf-doc-type">Medical Calendar Export</div>
+        <div class="pdf-date-generated">Generated May 26, 2026 · 2:14 PM</div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="pdf-legend">
+      <span class="pdf-legend-label">Legend</span>
+      <span class="pdf-legend-item doa">
+        <span class="pdf-legend-swatch"></span> Date of Accident
+      </span>
+      <span class="pdf-legend-item">
+        <span class="pdf-legend-swatch" style="background:#E8DEB5"></span> Our Lady of Fatima Hospital (16)
+      </span>
+      <span class="pdf-legend-item">
+        <span class="pdf-legend-swatch" style="background:#BDDDC4"></span> RI Medical Imaging (13)
+      </span>
+      <span class="pdf-legend-item">
+        <span class="pdf-legend-swatch" style="background:#BFD7E3"></span> Healy PT (7)
+      </span>
+      <span class="pdf-legend-item">
+        <span class="pdf-legend-swatch" style="background:#D2C9E0"></span> University Orthopedic (13)
+      </span>
+      <span class="pdf-legend-item">
+        <span class="pdf-legend-swatch" style="background:#E6C7D6"></span> Bay State PT (12)
+      </span>
+    </div>
+
+    <!-- 12-month grid -->
+    <div class="pdf-year-grid" id="pdfYearGrid"></div>
+
+    <!-- Footer -->
+    <div class="pdf-footer">
+      <div class="pdf-footer-stats">
+        <span><strong>Source:</strong> Medical chronology generated from 11 documents (33 pages)</span>
+      </div>
+      <div>Page 1 of 1 · Confidential — Attorney Work Product</div>
+    </div>
+
+  </div>
+
+<script>
+  const facilities = [
+    { id: 'olf',  label: 'Our Lady of Fatima Hospital', color: '#E8DEB5' },
+    { id: 'rmi',  label: 'RI Medical Imaging',          color: '#BDDDC4' },
+    { id: 'healy',label: 'Healy PT',                    color: '#BFD7E3' },
+    { id: 'uo',   label: 'University Orthopedic',       color: '#D2C9E0' },
+    { id: 'bay',  label: 'Bay State PT',                color: '#E6C7D6' }
+  ];
+
+  const DOA_DATE = '2024-07-06';
+  const facilityById = Object.fromEntries(facilities.map(f => [f.id, f]));
+
+  const visits = [
+    { date: '2024-07-08', facility: 'olf' },
+    { date: '2024-07-15', facility: 'rmi' },
+    { date: '2024-07-22', facility: 'uo' },
+    { date: '2024-08-02', facility: 'rmi' },
+    { date: '2024-08-05', facility: 'olf' },
+    { date: '2024-08-12', facility: 'uo' },
+    { date: '2024-08-16', facility: 'rmi' },
+    { date: '2024-08-19', facility: 'olf' },
+    { date: '2024-09-10', facility: 'rmi' },
+    { date: '2024-09-13', facility: 'olf' },
+    { date: '2024-09-17', facility: 'uo' },
+    { date: '2024-09-27', facility: 'olf' },
+    { date: '2024-09-30', facility: 'healy' },
+    { date: '2024-10-02', facility: 'healy' },
+    { date: '2024-10-07', facility: 'uo' },
+    { date: '2024-10-09', facility: 'healy' },
+    { date: '2024-10-10', facility: 'healy' },
+    { date: '2024-10-15', facility: 'rmi' },
+    { date: '2024-10-16', facility: 'healy' },
+    { date: '2024-10-21', facility: 'olf' },
+    { date: '2024-10-23', facility: 'healy' },
+    { date: '2024-10-25', facility: 'healy' },
+    { date: '2024-10-30', facility: 'rmi' },
+    { date: '2024-11-01', facility: 'olf' },
+    { date: '2024-11-04', facility: 'healy' },
+    { date: '2024-11-06', facility: 'uo' },
+    { date: '2024-11-11', facility: 'bay' },
+    { date: '2024-11-13', facility: 'bay' },
+    { date: '2024-11-18', facility: 'bay' },
+    { date: '2024-11-20', facility: 'bay' },
+    { date: '2024-11-25', facility: 'bay' },
+    { date: '2024-11-27', facility: 'bay' },
+    { date: '2024-12-03', facility: 'bay' },
+    { date: '2024-12-06', facility: 'bay' },
+    { date: '2024-12-09', facility: 'uo' },
+    { date: '2024-12-10', facility: 'bay' },
+    { date: '2024-12-12', facility: 'olf' },
+    { date: '2024-12-13', facility: 'bay' },
+    { date: '2024-12-16', facility: 'rmi' },
+    { date: '2024-12-20', facility: 'uo' },
+    { date: '2024-12-30', facility: 'rmi' },
+    { date: '2025-01-08', facility: 'bay' },
+    { date: '2025-01-10', facility: 'uo' },
+    { date: '2025-01-13', facility: 'olf' },
+    { date: '2025-01-17', facility: 'rmi' },
+    { date: '2025-01-24', facility: 'olf' },
+    { date: '2025-01-28', facility: 'uo' },
+    { date: '2025-02-07', facility: 'rmi' },
+    { date: '2025-02-11', facility: 'olf' },
+    { date: '2025-02-14', facility: 'uo' },
+    { date: '2025-02-21', facility: 'olf' },
+    { date: '2025-03-04', facility: 'olf' },
+    { date: '2025-03-11', facility: 'rmi' },
+    { date: '2025-03-14', facility: 'uo' },
+    { date: '2025-03-26', facility: 'uo' },
+    { date: '2025-04-05', facility: 'olf' },
+    { date: '2025-04-09', facility: 'rmi' },
+    { date: '2025-04-15', facility: 'uo' },
+    { date: '2025-05-02', facility: 'olf' },
+    { date: '2025-05-09', facility: 'rmi' },
+    { date: '2025-05-13', facility: 'uo' },
+    { date: '2025-05-23', facility: 'rmi' },
+    { date: '2025-05-30', facility: 'olf' }
+  ];
+
+  const visitsByDate = {};
+  visits.forEach(v => {
+    if (!visitsByDate[v.date]) visitsByDate[v.date] = [];
+    visitsByDate[v.date].push(v);
+  });
+
+  const monthNames = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+
+  // Render the 11-month window: Jul 2024 → May 2025 (plus pad to 12 if needed)
+  // Actually for a clean 4×3 grid we'll do exactly 12 months: Jul 2024 → Jun 2025
+  const months = [];
+  let y = 2024, m = 6; // July 2024
+  for (let i = 0; i < 12; i++) {
+    months.push({ year: y, month: m });
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+
+  function renderPdfMonth(year, month) {
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const weekdays = ['S','M','T','W','T','F','S'];
+
+    let cells = '';
+    weekdays.forEach(w => { cells += `<div class="pdf-weekday">${w}</div>`; });
+
+    for (let i = 0; i < firstDay; i++) {
+      cells += `<div class="pdf-day empty"></div>`;
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+      if (dateStr === DOA_DATE) {
+        cells += `<div class="pdf-day is-doa">${d}</div>`;
+        continue;
+      }
+
+      const dayVisits = visitsByDate[dateStr];
+      if (dayVisits && dayVisits.length > 0) {
+        const color = facilityById[dayVisits[0].facility].color;
+        cells += `<div class="pdf-day has-event" style="--evt-color:${color}">${d}</div>`;
+      } else {
+        cells += `<div class="pdf-day">${d}</div>`;
+      }
+    }
+
+    return `
+      <div class="pdf-month">
+        <div class="pdf-month-title">${monthNames[month]} ${year}</div>
+        <div class="pdf-month-grid">${cells}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById('pdfYearGrid').innerHTML =
+    months.map(mo => renderPdfMonth(mo.year, mo.month)).join('');
+</script>
+</body>
+</html>
